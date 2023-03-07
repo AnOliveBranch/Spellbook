@@ -210,16 +210,6 @@ module.exports = {
             }
             if (subcommand === 'remove') {
                 deleteCardFromCollection(interaction);
-                // At this point we know there is more than one card with a matching name
-                // Get all cards where the name matches exactly
-                return;
-                let nameMatchCards = cards.filter(
-                    (matchName) => matchName === cardName
-                );
-                if (nameMatchCards.length !== 0) {
-                    if (nameMatchCards.length === 1) {
-                    }
-                }
             }
         } else if (group === null) {
             if (subcommand === 'init') {
@@ -321,6 +311,37 @@ async function addCardToCollection(interaction) {
             });
         return;
     }
+
+    // Multiple matches were found
+    let nameMatchCards = cards.filter(
+        (matchName) => matchName.name === cardName
+    );
+    if (nameMatchCards.length !== 0) {
+        // Only one exact match, validate and add it
+        if (nameMatchCards.length === 1) {
+            const card = nameMatchCards[0];
+            const valid = await validateCard(interaction, card);
+            if (!valid) {
+                return;
+            }
+            addCard(user.id, card.uuid, isFoil, count, location)
+                .then(() => {
+                    interaction.editReply('Card added');
+                })
+                .catch((err) => {
+                    interaction.editReply('An error occurred adding the card');
+                    console.log(err);
+                });
+            return;
+        } else {
+            // There are multiple exact matches (probably different versions of the same card, ex showcase & normal)
+            const diff = findDifferences(nameMatchCards);
+            console.log(diff);
+            interaction.editReply('doot');
+        }
+    } else {
+        interaction.editReply('pending');
+    }
 }
 
 async function deleteCardFromCollection(interaction) {
@@ -414,6 +435,58 @@ async function validateCard(interaction, card) {
         return false;
     }
     return true;
+}
+
+// Helper function for differentiating multiple versions of the same card within a set
+// Compiles a list of all differences in the JSON between every card in the list
+// Throws away expected differences (such as IDs)
+function findDifferences(cardList) {
+    const skipped = [
+        'id',
+        'cardKingdomEtchedId',
+        'cardKingdomFoilId',
+        'cardKingdomId',
+        'cardsphereId',
+        'mcmId',
+        'mcmMetaId',
+        'mtgArenaId',
+        'mtgjsonFoilVersionId',
+        'mtgjsonNonFoilVersionId',
+        'mtgjsonV4Id',
+        'mtgoFoilId',
+        'mtgoId',
+        'multiverseId',
+        'originalText',
+        'otherFaceIds',
+        'purchaseUrls',
+        'scryfallId',
+        'scryfallIllustrationId',
+        'scryfallOracleId',
+        'tcgplayerEtchedProductId',
+        'tcgplayerProductId',
+        'uuid',
+        'variations'
+    ];
+    let diff = [];
+
+    for (let i = 0; i < cardList.length; i++) {
+        let baseCard = cardList[i];
+        let thisDiff = {};
+        for (let j = 0; j < cardList.length; j++) {
+            let compareCard = cardList[j];
+            for (const key in baseCard) {
+                if (skipped.includes(key)) {
+                    continue;
+                }
+                if (baseCard[key] !== compareCard[key]) {
+                    thisDiff[key] = baseCard[key];
+                }
+            }
+        }
+        diff[i] = thisDiff;
+    }
+
+    return diff;
 }
 
 async function hasTable(userId) {
