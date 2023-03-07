@@ -227,7 +227,12 @@ module.exports = {
                         }
                         if (cards.length === 1) {
                             const card = cards[0];
-
+                            if (card.name !== cardName) {
+                                interaction.editReply(
+                                    `Could not find \`${cardName}\` in set \`${cardSet}\`. Did you mean \`${card.name}\`?`
+                                );
+                                return;
+                            }
                             const hasFoil = card.hasFoil;
                             const hasNonFoil = card.hasNonFoil;
                             if (isFoil && !hasFoil) {
@@ -416,11 +421,11 @@ async function getCard(cardName, setCode, token) {
         conn = await pool.getConnection();
         if (token) {
             card = await conn.query(
-                `SELECT * FROM tokens WHERE (name='${cardName}') AND (setCode='${setCode}');`
+                `SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         } else {
             card = await conn.query(
-                `SELECT * FROM cards WHERE (name='${cardName}') AND (setCode='${setCode}');`
+                `SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         }
     } catch (err) {
