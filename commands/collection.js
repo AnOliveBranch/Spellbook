@@ -204,116 +204,22 @@ module.exports = {
                 );
                 return;
             }
-            const cardName = interaction.options.getString('name');
-            const cardSet = interaction.options.getString('set');
-            const isFoil =
-                interaction.options.getBoolean('foil') === true ? true : false;
-            const isToken =
-                interaction.options.getBoolean('token') === true ? true : false;
-            const count =
-                interaction.options.getInteger('count') === null
-                    ? 1
-                    : interaction.options.getInteger('count');
 
-            if (subcommand === 'add' || subcommand === 'remove') {
-                const location = interaction.options.getString('location');
-                getCard(cardName, cardSet, isToken)
-                    .then((cards) => {
-                        if (cards.length === 0) {
-                            interaction.editReply(
-                                `Could not find a card with name \`${cardName}\` in set \`${cardSet}\``
-                            );
-                            return;
-                        }
-                        if (cards.length === 1) {
-                            const card = cards[0];
-                            if (card.name !== cardName) {
-                                interaction.editReply(
-                                    `Could not find \`${cardName}\` in set \`${cardSet}\`. Did you mean \`${card.name}\`?`
-                                );
-                                return;
-                            }
-                            const hasFoil = card.hasFoil;
-                            const hasNonFoil = card.hasNonFoil;
-                            if (isFoil && !hasFoil) {
-                                interaction.editReply(
-                                    'Foil card was selected, but this card does not have a foil version'
-                                );
-                            } else if (!isFoil && !hasNonFoil) {
-                                interaction.editReply(
-                                    'Non-foil card was selected, but this card only exists in foil'
-                                );
-                            } else {
-                                if (subcommand === 'add') {
-                                    addCard(
-                                        user.id,
-                                        card.uuid,
-                                        isFoil,
-                                        count,
-                                        location
-                                    )
-                                        .then(() => {
-                                            interaction.editReply('Card added');
-                                        })
-                                        .catch((err) => {
-                                            interaction.editReply(
-                                                'An error occurred adding the card'
-                                            );
-                                            console.log(err);
-                                        });
-                                } else if (subcommand === 'remove') {
-                                    getCardsInCollection(
-                                        user.id,
-                                        card.uuid,
-                                        isFoil,
-                                        location
-                                    )
-                                        .then((cards) => {
-                                            if (cards.length === 0) {
-                                                interaction.editReply(
-                                                    'You do not have this card in your collection'
-                                                );
-                                            } else if (cards.length > 1) {
-                                                interaction.editReply(
-                                                    "Multiple copies of the same card, this shouldn't be possible"
-                                                );
-                                            } else {
-                                                if (cards[0].count < count) {
-                                                    interaction.editReply(
-                                                        `You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`
-                                                    );
-                                                } else {
-                                                    removeCard(
-                                                        user.id,
-                                                        card.uuid,
-                                                        isFoil,
-                                                        cards[0].count,
-                                                        count,
-                                                        location
-                                                    ).then(() => {
-                                                        interaction.editReply(
-                                                            'Card removed'
-                                                        );
-                                                    });
-                                                }
-                                            }
-                                        })
-                                        .catch((err) => {
-                                            interaction.editReply(
-                                                'An error occurred removing this card'
-                                            );
-                                            console.log(err);
-                                        });
-                                }
-                            }
-                        }
-                    })
-                    .catch((err) => {
-                        interaction.editReply(
-                            'An error occurred finding that card'
-                        );
-                        console.log(err);
-                    });
+            if (subcommand === 'add') {
+                addCardToCollection(interaction);
+            }
+            if (subcommand === 'remove') {
+                deleteCardFromCollection(interaction);
+                // At this point we know there is more than one card with a matching name
+                // Get all cards where the name matches exactly
+                return;
+                let nameMatchCards = cards.filter(
+                    (matchName) => matchName === cardName
+                );
+                if (nameMatchCards.length !== 0) {
+                    if (nameMatchCards.length === 1) {
+                    }
+                }
             }
         } else if (group === null) {
             if (subcommand === 'init') {
@@ -376,6 +282,140 @@ async function deleteCollection(interaction) {
     }
 }
 
+async function addCardToCollection(interaction) {
+    const cardName = interaction.options.getString('name');
+    const cardSet = interaction.options.getString('set');
+    const isFoil =
+        interaction.options.getBoolean('foil') === true ? true : false;
+    const isToken =
+        interaction.options.getBoolean('token') === true ? true : false;
+    const count =
+        interaction.options.getInteger('count') === null
+            ? 1
+            : interaction.options.getInteger('count');
+    const location = interaction.options.getString('location');
+    const user = interaction.user;
+
+    const cards = await getCards(cardName, cardSet, isToken);
+
+    if (cards.length === 0) {
+        interaction.editReply(
+            `Could not find \`${cardName}\` in set \`${cardSet}\``
+        );
+        return;
+    }
+
+    if (cards.length === 1) {
+        const card = cards[0];
+        const valid = await validateCard(interaction, card);
+        if (!valid) {
+            return;
+        }
+        addCard(user.id, card.uuid, isFoil, count, location)
+            .then(() => {
+                interaction.editReply('Card added');
+            })
+            .catch((err) => {
+                interaction.editReply('An error occurred adding the card');
+                console.log(err);
+            });
+        return;
+    }
+}
+
+async function deleteCardFromCollection(interaction) {
+    const cardName = interaction.options.getString('name');
+    const cardSet = interaction.options.getString('set');
+    const isFoil =
+        interaction.options.getBoolean('foil') === true ? true : false;
+    const isToken =
+        interaction.options.getBoolean('token') === true ? true : false;
+    const count =
+        interaction.options.getInteger('count') === null
+            ? 1
+            : interaction.options.getInteger('count');
+    const location = interaction.options.getString('location');
+    const user = interaction.user;
+
+    const cards = await getCards(cardName, cardSet, isToken);
+
+    if (cards.length === 0) {
+        interaction.editReply(
+            `Could not find \`${cardName}\` in set \`${cardSet}\``
+        );
+        return;
+    }
+
+    if (cards.length === 1) {
+        const card = cards[0];
+        const valid = await validateCard(interaction, card);
+        if (!valid) {
+            return;
+        }
+        getCardsInCollection(user.id, card.uuid, isFoil, location)
+            .then((cards) => {
+                if (cards.length === 0) {
+                    interaction.editReply(
+                        'You do not have this card in your collection'
+                    );
+                } else if (cards.length > 1) {
+                    interaction.editReply(
+                        "Multiple copies of the same card, this shouldn't be possible"
+                    );
+                } else {
+                    if (cards[0].count < count) {
+                        interaction.editReply(
+                            `You only have ${cards[0].count} of this card in your collection, cannot remove ${count}`
+                        );
+                    } else {
+                        removeCard(
+                            user.id,
+                            card.uuid,
+                            isFoil,
+                            cards[0].count,
+                            count,
+                            location
+                        ).then(() => {
+                            interaction.editReply('Card removed');
+                        });
+                    }
+                }
+            })
+            .catch((err) => {
+                interaction.editReply('An error occurred removing this card');
+                console.log(err);
+            });
+    }
+}
+
+async function validateCard(interaction, card) {
+    const cardName = interaction.options.getString('name');
+    const cardSet = interaction.options.getString('set');
+    const isFoil =
+        interaction.options.getBoolean('foil') === true ? true : false;
+
+    if (card.name !== cardName) {
+        interaction.editReply(
+            `Could not find \`${cardName}\` in set \`${cardSet}\`. Did you mean \`${card.name}\`?`
+        );
+        return false;
+    }
+    const hasFoil = card.hasFoil;
+    const hasNonFoil = card.hasNonFoil;
+    if (isFoil && !hasFoil) {
+        interaction.editReply(
+            'Foil card was selected, but this card does not have a foil version'
+        );
+        return false;
+    } else if (!isFoil && !hasNonFoil) {
+        interaction.editReply(
+            'Non-foil card was selected, but this card only exists in foil'
+        );
+        return false;
+    }
+    return true;
+}
+
 async function hasTable(userId) {
     let conn;
     let exists;
@@ -421,17 +461,17 @@ async function createTable(userId) {
     }
 }
 
-async function getCard(cardName, setCode, token) {
+async function getCards(cardName, setCode, token) {
     let conn;
-    let card;
+    let cards;
     try {
         conn = await pool.getConnection();
         if (token) {
-            card = await conn.query(
+            cards = await conn.query(
                 `SELECT * FROM tokens WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         } else {
-            card = await conn.query(
+            cards = await conn.query(
                 `SELECT * FROM cards WHERE (name LIKE '%${cardName}%') AND (setCode='${setCode}');`
             );
         }
@@ -440,7 +480,7 @@ async function getCard(cardName, setCode, token) {
     } finally {
         if (conn) {
             conn.end();
-            return card;
+            return cards;
         }
     }
 }
