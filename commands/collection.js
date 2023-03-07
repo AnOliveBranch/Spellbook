@@ -317,57 +317,64 @@ module.exports = {
             }
         } else if (group === null) {
             if (subcommand === 'init') {
-                if (tableExists) {
-                    interaction.editReply(
-                        'You already have an existing collection'
-                    );
-                } else {
-                    createTable(user.id)
-                        .then(() => {
-                            interaction.editReply(
-                                'Your collection has been created'
-                            );
-                        })
-                        .catch((err) => {
-                            interaction.editReply(
-                                'An error occurred creating your collection'
-                            );
-                            console.log(err);
-                        });
-                }
+                initCollection(interaction);
             } else if (subcommand === 'delete') {
-                if (!tableExists) {
-                    interaction.editReply(
-                        'You do not have a collection to delete'
-                    );
-                } else {
-                    const embed = createDeleteEmbed();
-                    const buttons = createConfirmationButtons(user.id);
-                    interaction.editReply({
-                        embeds: [embed],
-                        components: [buttons]
-                    });
-
-                    setTimeout(() => {
-                        interaction.fetchReply().then((reply) => {
-                            if (
-                                reply.embeds[0].data.title === 'Are you sure?'
-                            ) {
-                                const newEmbed = createTimeoutDeleteEmbed();
-                                const newButtons =
-                                    createDisabledConfirmationButtons(user.id);
-                                interaction.editReply({
-                                    embeds: [newEmbed],
-                                    components: [newButtons]
-                                });
-                            }
-                        });
-                    }, 15000);
-                }
+                deleteCollection(interaction);
             }
         }
     }
 };
+
+async function initCollection(interaction) {
+    const user = interaction.user;
+    const tableExists = await hasTable(user.id);
+
+    if (tableExists) {
+        interaction.editReply('You already have an existing collection');
+    } else {
+        createTable(user.id)
+            .then(() => {
+                interaction.editReply('Your collection has been created');
+            })
+            .catch((err) => {
+                interaction.editReply(
+                    'An error occurred creating your collection'
+                );
+                console.log(err);
+            });
+    }
+}
+
+async function deleteCollection(interaction) {
+    const user = interaction.user;
+    const tableExists = await hasTable(user.id);
+
+    if (!tableExists) {
+        interaction.editReply('You do not have a collection to delete');
+    } else {
+        const embed = createDeleteEmbed();
+        const buttons = createConfirmationButtons(user.id);
+        interaction.editReply({
+            embeds: [embed],
+            components: [buttons]
+        });
+
+        setTimeout(() => {
+            interaction.fetchReply().then((reply) => {
+                if (reply.embeds[0].data.title === 'Are you sure?') {
+                    const newEmbed = createTimeoutDeleteEmbed();
+                    const newButtons = createDisabledConfirmationButtons(
+                        user.id
+                    );
+                    interaction.editReply({
+                        embeds: [newEmbed],
+                        components: [newButtons]
+                    });
+                }
+            });
+        }, 15000);
+    }
+}
 
 async function hasTable(userId) {
     let conn;
