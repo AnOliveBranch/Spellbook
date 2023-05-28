@@ -57,7 +57,9 @@ module.exports = {
                         .addStringOption((option) =>
                             option
                                 .setName('set')
-                                .setDescription('The set code of the card')
+                                .setDescription(
+                                    'The set name or code of the card'
+                                )
                                 .setRequired(true)
                         )
                         .addBooleanOption((option) =>
@@ -102,7 +104,9 @@ module.exports = {
                         .addStringOption((option) =>
                             option
                                 .setName('set')
-                                .setDescription('The set code of the card')
+                                .setDescription(
+                                    'The set name or code of the card'
+                                )
                                 .setRequired(true)
                         )
                         .addBooleanOption((option) =>
@@ -149,7 +153,9 @@ module.exports = {
                         .addStringOption((option) =>
                             option
                                 .setName('set')
-                                .setDescription('The set code of the card')
+                                .setDescription(
+                                    'The set name or code of the card'
+                                )
                                 .setRequired(true)
                         )
                         .addStringOption((option) =>
@@ -286,7 +292,12 @@ async function addCardToCollection(interaction) {
     const location = interaction.options.getString('location');
     const user = interaction.user;
 
-    const cards = await getCards(cardName, cardSet, isToken);
+    const set = await isValidSet(cardSet);
+    if (set === false) {
+        interaction.editReply(`Could not find set \`${cardSet}\``);
+        return;
+    }
+    const cards = await getCards(cardName, set, isToken);
 
     if (cards.length === 0) {
         interaction.editReply(
@@ -530,6 +541,30 @@ async function createTable(userId) {
     } finally {
         if (conn) {
             return conn.end();
+        }
+    }
+}
+
+async function isValidSet(setCode) {
+    console.log(setCode);
+    let conn;
+    let set = false;
+    try {
+        conn = await pool.getConnection();
+        console.log(conn);
+        let res = await conn.query(
+            `SELECT code FROM sets WHERE (code='${setCode}') OR (name='${setCode}')`
+        );
+        console.log(res);
+        if (res.length === 1) {
+            set = res[0].code;
+        }
+    } catch (err) {
+        throw err;
+    } finally {
+        if (conn) {
+            conn.end();
+            return set;
         }
     }
 }
