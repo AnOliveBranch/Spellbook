@@ -292,6 +292,7 @@ async function addCardToCollection(interaction) {
     const location = interaction.options.getString('location');
     const user = interaction.user;
 
+    // Validate the set and use set code instead of set name
     const set = await isValidSet(cardSet);
     if (set === false) {
         interaction.editReply(`Could not find set \`${cardSet}\``);
